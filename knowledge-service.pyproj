@@ -4,13 +4,15 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>0007d927-58f2-47e9-85e4-f0bcd86782f8</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>knowledge_service.py</StartupFile>
+    <StartupFile>app\main.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
     <Name>knowledge-service</Name>
     <RootNamespace>knowledge-service</RootNamespace>
+    <TestFramework>Pytest</TestFramework>
+    <InterpreterId>MSBuild|.venv|$(MSBuildProjectFullPath)</InterpreterId>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -21,7 +23,52 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="knowledge_service.py" />
+    <Compile Include="app\__init__.py" />
+    <Compile Include="app\main.py" />
+    <Compile Include="app\config.py" />
+    <Compile Include="app\dependencies.py" />
+    <Compile Include="app\errors.py" />
+    <Compile Include="app\models.py" />
+    <Compile Include="app\logging_setup.py" />
+    <Compile Include="app\pdf_extraction.py" />
+    <Compile Include="app\chunking.py" />
+    <Compile Include="app\embeddings.py" />
+    <Compile Include="app\opensearch_client.py" />
+    <Compile Include="app\ingestion.py" />
+    <Compile Include="app\api\__init__.py" />
+    <Compile Include="app\api\search.py" />
+    <Compile Include="app\api\admin.py" />
+    <Compile Include="tests\test_pdf_extraction.py" />
+    <Compile Include="tests\test_chunking.py" />
+    <Compile Include="tests\test_embeddings.py" />
+    <Compile Include="tests\test_opensearch_client.py" />
+    <Compile Include="tests\test_ingestion.py" />
+    <Compile Include="tests\test_search_endpoint.py" />
+    <Compile Include="tests\test_admin_endpoint.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="requirements.txt" />
+    <Content Include="requirements-dev.txt" />
+    <Content Include="pyproject.toml" />
+    <Content Include="data\faq_pdfs\README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="app\" />
+    <Folder Include="app\api\" />
+    <Folder Include="tests\" />
+    <Folder Include="data\" />
+    <Folder Include="data\faq_pdfs\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Interpreter Include=".venv\">
+      <Id>.venv</Id>
+      <Version>3.12</Version>
+      <Description>.venv (Python 3.12 (64-bit))</Description>
+      <InterpreterPath>Scripts\python.exe</InterpreterPath>
+      <WindowsInterpreterPath>Scripts\pythonw.exe</WindowsInterpreterPath>
+      <PathEnvironmentVariable>PYTHONPATH</PathEnvironmentVariable>
+      <Architecture>X64</Architecture>
+    </Interpreter>
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

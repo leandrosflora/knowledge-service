@@ -1,0 +1,6 @@
+pytest==9.1.1
+pytest-asyncio==1.4.0
+httpx==0.28.1
+respx==0.23.1
+# Generates small fixture PDFs with real extractable text for pdf_extraction/chunking tests.
+reportlab==5.0.0

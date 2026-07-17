@@ -1,0 +1,10 @@
+fastapi==0.139.0
+uvicorn==0.50.0
+pydantic-settings==2.14.2
+opensearch-py[async]==3.2.0
+openai==2.44.0
+pypdf==6.14.2
+opentelemetry-api==1.43.0
+opentelemetry-sdk==1.43.0
+opentelemetry-exporter-otlp-proto-grpc==1.43.0
+opentelemetry-instrumentation-fastapi==0.64b0
