@@ -47,6 +47,7 @@
     <Compile Include="tests\test_admin_endpoint.py" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="data\faq_pdfs\FAQ_Renegociacao_Dividas_Agente_IA_v1.0.pdf" />
     <Content Include="requirements.txt" />
     <Content Include="requirements-dev.txt" />
     <Content Include="pyproject.toml" />
