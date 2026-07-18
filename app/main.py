@@ -19,50 +19,61 @@ from app.errors import KnowledgeBackendUnavailableError
 from app.ingestion import ingest_faq_directory
 from app.logging_setup import CorrelationIdMiddleware, configure_logging
 from app.opensearch_client import build_opensearch_client, ensure_index
+from app.platform import PlatformMiddleware, metrics_response
 
 configure_logging()
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
-_tracer_provider = TracerProvider(resource=Resource.create({"service.name": "knowledge-service"}))
+_tracer_provider = TracerProvider(
+    resource=Resource.create({"service.name": settings.internal_auth_service_name})
+)
 _tracer_provider.add_span_processor(
-    BatchSpanProcessor(OTLPSpanExporter(endpoint=get_settings().otel_otlp_endpoint))
+    BatchSpanProcessor(OTLPSpanExporter(endpoint=settings.otel_otlp_endpoint))
 )
 trace.set_tracer_provider(_tracer_provider)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    settings = get_settings()
     app.state.settings = settings
     app.state.openai_client = build_openai_client(settings)
     app.state.opensearch_client = build_opensearch_client(settings)
 
-    await ensure_index(app.state.opensearch_client, settings)
-
-    if not settings.openai_api_key:
-        logger.warning("OPENAI_API_KEY not configured; skipping startup FAQ ingestion")
-    else:
-        try:
+    try:
+        await ensure_index(app.state.opensearch_client, settings, settings.default_tenant_id)
+        if settings.openai_api_key:
             summary = await ingest_faq_directory(
-                app.state.openai_client, app.state.opensearch_client, settings
+                app.state.openai_client,
+                app.state.opensearch_client,
+                settings,
+                settings.default_tenant_id,
             )
             logger.info(
-                "Startup ingestion: %s indexed, %s skipped, %s failed, %s chunks written",
+                "Startup ingestion for tenant %s: %s indexed, %s skipped, %s failed, %s chunks",
+                settings.default_tenant_id,
                 summary.files_indexed,
                 summary.files_skipped,
                 summary.files_failed,
                 summary.chunks_written,
             )
-        except KnowledgeBackendUnavailableError:
-            logger.warning("Startup FAQ ingestion could not complete; continuing to serve requests")
+        else:
+            logger.warning("OPENAI_API_KEY not configured; skipping startup FAQ ingestion")
+    except KnowledgeBackendUnavailableError:
+        logger.warning("Startup FAQ ingestion could not complete; readiness will remain false")
 
     yield
-
     await app.state.opensearch_client.close()
 
 
 app = FastAPI(title="knowledge-service", lifespan=lifespan)
 app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(
+    PlatformMiddleware,
+    settings=settings,
+    public_paths=("/health/live", "/health/ready", "/metrics", "/docs", "/openapi.json", "/redoc"),
+    tenant_required_paths=("/search", "/admin"),
+)
 FastAPIInstrumentor.instrument_app(app)
 
 
@@ -76,6 +87,34 @@ async def log_validation_errors(request: Request, exc: RequestValidationError) -
 async def handle_backend_unavailable(request: Request, exc: KnowledgeBackendUnavailableError) -> JSONResponse:
     logger.error("Knowledge backend unavailable while handling %s: %s", request.url.path, exc)
     return JSONResponse(status_code=503, content={"detail": str(exc)})
+
+
+@app.get("/health/live", include_in_schema=False)
+async def health_live() -> dict[str, str]:
+    return {"status": "live"}
+
+
+@app.get("/health/ready", include_in_schema=False)
+async def health_ready(request: Request) -> JSONResponse:
+    failures: list[str] = []
+    if settings.internal_auth_enabled and not settings.internal_auth_signing_key:
+        failures.append("internal_auth_signing_key_missing")
+    if not settings.openai_api_key:
+        failures.append("openai_api_key_missing")
+    try:
+        await request.app.state.opensearch_client.cluster.health()
+    except Exception:
+        failures.append("opensearch_unavailable")
+
+    return JSONResponse(
+        {"status": "not_ready" if failures else "ready", "failures": failures},
+        status_code=503 if failures else 200,
+    )
+
+
+@app.get("/metrics", include_in_schema=False)
+async def metrics():
+    return metrics_response()
 
 
 app.include_router(search_router)
