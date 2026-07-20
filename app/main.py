@@ -97,8 +97,10 @@ async def health_live() -> dict[str, str]:
 @app.get("/health/ready", include_in_schema=False)
 async def health_ready(request: Request) -> JSONResponse:
     failures: list[str] = []
-    if settings.internal_auth_enabled and not settings.internal_auth_signing_key:
-        failures.append("internal_auth_signing_key_missing")
+    if settings.internal_auth_enabled:
+        inbound_secret = settings.internal_auth_inbound_secrets.get("agent-runtime-renegotiation")
+        if not inbound_secret or len(inbound_secret.encode("utf-8")) < 32:
+            failures.append("internal_auth_inbound_secret_missing:agent-runtime-renegotiation")
     if not settings.openai_api_key:
         failures.append("openai_api_key_missing")
     try:
