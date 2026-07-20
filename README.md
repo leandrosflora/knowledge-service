@@ -35,10 +35,17 @@ flowchart LR
 
 ## Endpoints
 
+Todos exigem `Authorization: Bearer <jwt-interno>` e `X-Tenant-Id: <tenant>` (validado contra a claim assinada), exceto `/health/live`, `/health/ready`, `/metrics` e `/docs`.
+
 | Método | Rota | Descrição |
 |---|---|---|
-| `GET` | `/search?query=...` | Retorna `{"results": [{"title", "content", "score"}]}` — contrato já consumido por `agent-runtime-renegotiation`. Lista vazia quando nada supera o score mínimo (inclusive índice vazio). |
-| `POST` | `/admin/reindex` | Reescaneia `data/faq_pdfs/`, ingerindo o que for novo ou tiver mudado. Retorna um resumo (`files_indexed`, `files_skipped`, `files_failed`, `chunks_written`). |
+| `GET` | `/search?query=...` | Retorna `{"results": [{"title", "content", "score"}]}` — contrato já consumido por `agent-runtime-renegotiation`. Lista vazia quando nada supera o score mínimo (inclusive índice vazio). Busca no índice do tenant autenticado. |
+| `POST` | `/admin/reindex` | Reescaneia o diretório de FAQ do tenant autenticado, ingerindo o que for novo ou tiver mudado. Retorna um resumo (`files_indexed`, `files_skipped`, `files_failed`, `chunks_written`). |
+| `GET` | `/health/live`, `/health/ready` | Liveness/readiness; `/health/ready` verifica a chave de assinatura JWT, `OPENAI_API_KEY` e conectividade com OpenSearch. |
+
+## Isolamento por tenant
+
+Cada tenant tem seu próprio índice OpenSearch (`{OPENSEARCH_INDEX_PREFIX}-{tenant_id}`) e, por convenção, seu próprio subdiretório de PDFs em `FAQ_PDF_DIR/{tenant_id}/` — exceto o tenant configurado em `DEFAULT_TENANT_ID`, que usa a raiz de `FAQ_PDF_DIR` diretamente (caminho de migração/compatibilidade, para não exigir mover os PDFs existentes para uma subpasta).
 
 ## Configuração
 
@@ -49,12 +56,15 @@ O serviço usa `pydantic-settings`, com suporte a variáveis de ambiente.
 | `OPENAI_API_KEY` | (vazio) | Chave de API da OpenAI, usada para embeddings. Sem ela, a ingestão no startup é pulada (log de aviso) e `GET /search` responde `503`. |
 | `EMBEDDING_MODEL` | `text-embedding-3-small` | Modelo de embeddings da OpenAI. |
 | `OPENSEARCH_URL` | `http://localhost:9200` | URL do OpenSearch. |
-| `OPENSEARCH_INDEX` | `faq_chunks` | Nome do índice. |
-| `FAQ_PDF_DIR` | `data/faq_pdfs` | Diretório com os PDFs de FAQ. |
+| `OPENSEARCH_INDEX_PREFIX` | `faq_chunks` | Prefixo do nome do índice; o índice real é `{prefix}-{tenant_id}`. |
+| `FAQ_PDF_DIR` | `data/faq_pdfs` | Diretório raiz com os PDFs de FAQ (subdividido por tenant — ver acima). |
+| `DEFAULT_TENANT_ID` | `00000000-0000-0000-0000-000000000001` | Tenant que usa `FAQ_PDF_DIR` diretamente, sem subpasta. |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | `1000` / `150` | Tamanho e sobreposição dos chunks de texto (caracteres). |
 | `SEARCH_TOP_K` | `3` | Quantidade de resultados buscados por consulta. |
 | `MIN_RELEVANCE_SCORE` | `0.70` | Score mínimo (similaridade de cosseno normalizada) para um resultado ser retornado. |
 | `OTEL_OTLP_ENDPOINT` | `http://localhost:4317` | Endpoint OTLP para tracing (Jaeger). |
+| `INTERNAL_AUTH_ENABLED` | `true` | Se `false`, os endpoints não exigem JWT (uso local/teste); `X-Tenant-Id` continua obrigatório. |
+| `INTERNAL_AUTH_SIGNING_KEY` | (vazio) | Chave HS256 usada para validar o JWT recebido. Obrigatória com auth habilitada. |
 
 ## Como executar localmente
 
@@ -63,6 +73,7 @@ O serviço usa `pydantic-settings`, com suporte a variáveis de ambiente.
 - Python 3.12
 - OpenSearch acessível (localmente ou via `docker compose up opensearch` no `conversational-ai-demo-arch`)
 - Uma `OPENAI_API_KEY` real (sem ela, o serviço sobe normalmente mas não ingere nem busca nada)
+- `INTERNAL_AUTH_SIGNING_KEY` com pelo menos 32 bytes, igual ao configurado no `agent-runtime-renegotiation` (chamador de `/search`)
 
 ### Criar ambiente virtual
 
@@ -94,10 +105,16 @@ Swagger: `http://localhost:8500/docs`
 ## Testes
 
 ```bash
-pytest
+python -m pytest
 ```
 
-Os testes mockam o client da OpenAI (`respx`) e o client do OpenSearch (`unittest.mock`), e geram PDFs de fixture em tempo de execução com `reportlab` — não dependem de infraestrutura real nem de PDFs reais de FAQ.
+> Use `python -m pytest`, não o script `pytest` isolado — sem o `python -m`, o diretório do projeto não entra no `sys.path` e a suíte inteira falha com `ModuleNotFoundError: No module named 'app'` (é exatamente por isso que o workflow de CI usa `python -m pytest`).
+
+Os testes mockam o client da OpenAI (`respx`) e o client do OpenSearch (`unittest.mock`), e geram PDFs de fixture em tempo de execução com `reportlab` — não dependem de infraestrutura real nem de PDFs reais de FAQ. `PlatformMiddleware` é contornado nos testes de endpoint mutando o singleton `app.main.settings` (`internal_auth_enabled=False`) em vez de assinar um JWT de verdade, já que a instância é fixada na app na inicialização e não é resolvida via `Depends` a cada request.
+
+## CI
+
+`.github/workflows/ci.yml` roda `pip install`/`python -m pytest` a cada push/PR para `master`.
 
 ## Estrutura
 
