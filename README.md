@@ -64,7 +64,7 @@ O serviço usa `pydantic-settings`, com suporte a variáveis de ambiente.
 | `MIN_RELEVANCE_SCORE` | `0.70` | Score mínimo (similaridade de cosseno normalizada) para um resultado ser retornado. |
 | `OTEL_OTLP_ENDPOINT` | `http://localhost:4317` | Endpoint OTLP para tracing (Jaeger). |
 | `INTERNAL_AUTH_ENABLED` | `true` | Se `false`, os endpoints não exigem JWT (uso local/teste); `X-Tenant-Id` continua obrigatório. |
-| `INTERNAL_AUTH_SIGNING_KEY` | (vazio) | Chave HS256 usada para validar o JWT recebido. Obrigatória com auth habilitada. |
+| `INTERNAL_AUTH_INBOUND_SECRETS__agent-runtime-renegotiation` | (vazio) | Chave HS256 usada para validar o JWT recebido de `agent-runtime-renegotiation` (via `env_nested_delimiter="__"`, popula `internal_auth_inbound_secrets["agent-runtime-renegotiation"]`). Obrigatória com auth habilitada. O JWT precisa trazer o header `kid: agent-runtime-renegotiation`. Em `docker-compose.override.yml` este valor vem de `${INTERNAL_AUTH_SECRET_AGENT_RUNTIME_RENEGOTIATION__KNOWLEDGE_SERVICE}` no `.env` do `conversational-ai-demo-arch` — mesmo segredo, dois nomes: um é a variável de origem no `.env`, o outro é o nome de campo que este serviço realmente lê. |
 
 ## Como executar localmente
 
@@ -73,7 +73,7 @@ O serviço usa `pydantic-settings`, com suporte a variáveis de ambiente.
 - Python 3.12
 - OpenSearch acessível (localmente ou via `docker compose up opensearch` no `conversational-ai-demo-arch`)
 - Uma `OPENAI_API_KEY` real (sem ela, o serviço sobe normalmente mas não ingere nem busca nada)
-- `INTERNAL_AUTH_SIGNING_KEY` com pelo menos 32 bytes, igual ao configurado no `agent-runtime-renegotiation` (chamador de `/search`)
+- `INTERNAL_AUTH_INBOUND_SECRETS__agent-runtime-renegotiation` com pelo menos 32 bytes, igual ao configurado como outbound secret no `agent-runtime-renegotiation` (chamador de `/search`)
 
 ### Criar ambiente virtual
 
