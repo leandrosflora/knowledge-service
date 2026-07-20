@@ -39,7 +39,9 @@ async def test_new_file_gets_indexed(faq_dir: Path):
         patch("app.ingestion.index_chunk", AsyncMock()) as mock_index,
         patch("app.ingestion.refresh_index", AsyncMock()) as mock_refresh,
     ):
-        summary = await ingest_faq_directory(openai_client=object(), opensearch_client=object(), settings=settings)
+        summary = await ingest_faq_directory(
+            openai_client=object(), opensearch_client=object(), settings=settings, tenant_id=settings.default_tenant_id
+        )
 
     assert summary.files_indexed == 1
     assert summary.files_skipped == 0
@@ -63,7 +65,9 @@ async def test_unchanged_file_is_skipped(faq_dir: Path):
         patch("app.ingestion.count_indexed_chunks", AsyncMock(return_value=1)),  # matches len(chunks)
         patch("app.ingestion.embed_texts", AsyncMock()) as mock_embed,
     ):
-        summary = await ingest_faq_directory(openai_client=object(), opensearch_client=object(), settings=settings)
+        summary = await ingest_faq_directory(
+            openai_client=object(), opensearch_client=object(), settings=settings, tenant_id=settings.default_tenant_id
+        )
 
     assert summary.files_skipped == 1
     assert summary.files_indexed == 0
@@ -87,7 +91,9 @@ async def test_hash_match_but_incomplete_chunk_count_is_reingested(faq_dir: Path
         patch("app.ingestion.index_chunk", AsyncMock()),
         patch("app.ingestion.refresh_index", AsyncMock()),
     ):
-        summary = await ingest_faq_directory(openai_client=object(), opensearch_client=object(), settings=settings)
+        summary = await ingest_faq_directory(
+            openai_client=object(), opensearch_client=object(), settings=settings, tenant_id=settings.default_tenant_id
+        )
 
     assert summary.files_indexed == 1
     assert summary.files_skipped == 0
@@ -106,7 +112,9 @@ async def test_changed_file_deletes_old_chunks_and_reindexes(faq_dir: Path):
         patch("app.ingestion.index_chunk", AsyncMock()),
         patch("app.ingestion.refresh_index", AsyncMock()),
     ):
-        summary = await ingest_faq_directory(openai_client=object(), opensearch_client=object(), settings=settings)
+        summary = await ingest_faq_directory(
+            openai_client=object(), opensearch_client=object(), settings=settings, tenant_id=settings.default_tenant_id
+        )
 
     assert summary.files_indexed == 1
     mock_delete.assert_awaited_once()
@@ -124,7 +132,9 @@ async def test_malformed_pdf_is_skipped_without_failing_the_run(faq_dir: Path):
         patch("app.ingestion.index_chunk", AsyncMock()),
         patch("app.ingestion.refresh_index", AsyncMock()),
     ):
-        summary = await ingest_faq_directory(openai_client=object(), opensearch_client=object(), settings=settings)
+        summary = await ingest_faq_directory(
+            openai_client=object(), opensearch_client=object(), settings=settings, tenant_id=settings.default_tenant_id
+        )
 
     assert summary.files_failed == 1
     assert summary.files_indexed == 1
@@ -139,7 +149,12 @@ async def test_backend_unavailable_aborts_the_run(faq_dir: Path):
         patch("app.ingestion.embed_texts", AsyncMock(side_effect=KnowledgeBackendUnavailableError("down"))),
     ):
         with pytest.raises(KnowledgeBackendUnavailableError):
-            await ingest_faq_directory(openai_client=object(), opensearch_client=object(), settings=settings)
+            await ingest_faq_directory(
+                openai_client=object(),
+                opensearch_client=object(),
+                settings=settings,
+                tenant_id=settings.default_tenant_id,
+            )
 
 
 async def test_partial_index_failure_rolls_back_instead_of_leaving_a_stuck_partial_state(faq_dir: Path):
@@ -161,7 +176,12 @@ async def test_partial_index_failure_rolls_back_instead_of_leaving_a_stuck_parti
         patch("app.ingestion.refresh_index", AsyncMock()) as mock_refresh,
     ):
         with pytest.raises(KnowledgeBackendUnavailableError):
-            await ingest_faq_directory(openai_client=object(), opensearch_client=object(), settings=settings)
+            await ingest_faq_directory(
+                openai_client=object(),
+                opensearch_client=object(),
+                settings=settings,
+                tenant_id=settings.default_tenant_id,
+            )
 
     # Rolled back the one chunk that did get written, so a later attempt sees no
     # existing chunks for this file (existing_hash=None) and retries it in full.
@@ -172,7 +192,9 @@ async def test_partial_index_failure_rolls_back_instead_of_leaving_a_stuck_parti
 async def test_directory_missing_returns_empty_summary(tmp_path: Path):
     settings = make_settings(tmp_path / "does-not-exist")
 
-    summary = await ingest_faq_directory(openai_client=object(), opensearch_client=object(), settings=settings)
+    summary = await ingest_faq_directory(
+        openai_client=object(), opensearch_client=object(), settings=settings, tenant_id=settings.default_tenant_id
+    )
 
     assert summary.files_indexed == 0
     assert summary.files_skipped == 0
