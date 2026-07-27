@@ -1,4 +1,5 @@
 name: Supply chain
+# Versioned platform baseline; service-specific tests remain in CI.
 
 on:
   pull_request:
