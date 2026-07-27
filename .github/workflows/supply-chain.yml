@@ -1,0 +1,30 @@
+name: Supply chain
+# Versioned platform baseline; service-specific tests remain in CI.
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  security-events: write
+  actions: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: supply-chain-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  supply-chain:
+    uses: leandrosflora/conversational-ai-platform-architecture/.github/workflows/reusable-service-supply-chain.yml@v1
+    with:
+      service_name: knowledge-service
+      language: python
+      dockerfile: Dockerfile
