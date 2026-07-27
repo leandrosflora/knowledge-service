@@ -1,5 +1,6 @@
 name: Supply chain
 # Versioned platform baseline; service-specific tests remain in CI.
+# Dependency version updates are handled deliberately; security scans remain centralized.
 
 on:
   pull_request:
